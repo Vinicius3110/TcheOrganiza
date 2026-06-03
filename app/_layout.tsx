@@ -1,6 +1,7 @@
 import { Stack } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { useColorScheme, View, ActivityIndicator } from 'react-native';
+import { useEffect } from 'react';
 import {
   useFonts,
   Inter_400Regular,
@@ -10,6 +11,7 @@ import {
 import { QueryClientProvider } from '@tanstack/react-query';
 import { ThemeProvider } from '../src/theme/ThemeProvider';
 import { queryClient } from '../src/lib/query-client';
+import * as ScreenCapture from 'expo-screen-capture';
 
 export default function RootLayout() {
   const colorScheme = useColorScheme();
@@ -19,6 +21,11 @@ export default function RootLayout() {
     'Inter-SemiBold': Inter_600SemiBold,
     'Inter-Bold': Inter_700Bold,
   });
+
+  useEffect(() => {
+    ScreenCapture.preventScreenCaptureAsync();
+    return () => { ScreenCapture.allowScreenCaptureAsync(); };
+  }, []);
 
   if (!fontsLoaded) {
     return (
