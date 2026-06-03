@@ -45,18 +45,44 @@ CREATE TABLE categories (
   created_at    TIMESTAMPTZ DEFAULT now()
 );
 
--- Insert default system categories
-INSERT INTO categories (id, name, icon, color, is_system) VALUES
-  (gen_random_uuid(), 'Transporte', '🚗', '#6366F1', true),
-  (gen_random_uuid(), 'Alimentação', '🍔', '#F59E0B', true),
-  (gen_random_uuid(), 'Moradia', '🏠', '#8B5CF6', true),
-  (gen_random_uuid(), 'Saúde', '💊', '#EF4444', true),
-  (gen_random_uuid(), 'Lazer', '🎮', '#22C55E', true),
-  (gen_random_uuid(), 'Salário/Receita', '💰', '#10B981', true),
-  (gen_random_uuid(), 'Compras', '🛒', '#EC4899', true),
-  (gen_random_uuid(), 'Educação', '📚', '#3B82F6', true),
-  (gen_random_uuid(), 'Investimentos', '💸', '#F97316', true),
-  (gen_random_uuid(), 'Outros', '❓', '#6E7681', true);
+-- Insert default system categories (idempotent — skips if already seeded)
+INSERT INTO categories (id, name, icon, color, is_system)
+SELECT gen_random_uuid(), name, icon, color, true
+FROM (VALUES
+  ('Transporte', '🚗', '#6366F1'),
+  ('Alimentação', '🍔', '#F59E0B'),
+  ('Moradia', '🏠', '#8B5CF6'),
+  ('Saúde', '💊', '#EF4444'),
+  ('Lazer', '🎮', '#22C55E'),
+  ('Salário/Receita', '💰', '#10B981'),
+  ('Compras', '🛒', '#EC4899'),
+  ('Educação', '📚', '#3B82F6'),
+  ('Investimentos', '💸', '#F97316'),
+  ('Outros', '❓', '#6E7681')
+) AS defaults(name, icon, color)
+WHERE NOT EXISTS (SELECT 1 FROM categories WHERE is_system = true);
+
+-- Trigger: prevent parent category cross-user assignment
+CREATE OR REPLACE FUNCTION check_category_parent_user()
+RETURNS TRIGGER AS $$
+BEGIN
+  IF NEW.parent_id IS NOT NULL THEN
+    IF EXISTS (
+      SELECT 1 FROM categories
+      WHERE id = NEW.parent_id
+        AND user_id IS NOT NULL
+        AND user_id != auth.uid()
+    ) THEN
+      RAISE EXCEPTION 'Parent category belongs to another user';
+    END IF;
+  END IF;
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+CREATE TRIGGER validate_category_parent
+  BEFORE INSERT OR UPDATE ON categories
+  FOR EACH ROW EXECUTE FUNCTION check_category_parent_user();
 
 -- ============================================
 -- institutions: connected banks

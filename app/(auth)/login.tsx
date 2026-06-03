@@ -22,7 +22,9 @@ export default function LoginScreen() {
     const { error: loginError } = await login(email.trim(), password);
 
     if (loginError) {
-      setError('Email ou senha inválidos.');
+      setError(loginError === 'Invalid login credentials'
+        ? 'Email ou senha inválidos.'
+        : loginError);
       setLoading(false);
       return;
     }
