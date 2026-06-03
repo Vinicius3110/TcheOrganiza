@@ -1,13 +1,15 @@
 import { Stack } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
-import { useColorScheme } from 'react-native';
+import { useColorScheme, View, ActivityIndicator } from 'react-native';
 import {
   useFonts,
   Inter_400Regular,
   Inter_600SemiBold,
   Inter_700Bold,
 } from '@expo-google-fonts/inter';
-import { View, ActivityIndicator } from 'react-native';
+import { QueryClientProvider } from '@tanstack/react-query';
+import { ThemeProvider } from '../src/theme/ThemeProvider';
+import { queryClient } from '../src/lib/query-client';
 
 export default function RootLayout() {
   const colorScheme = useColorScheme();
@@ -27,10 +29,14 @@ export default function RootLayout() {
   }
 
   return (
-    <Stack screenOptions={{ headerShown: false }}>
-      <StatusBar style={colorScheme === 'dark' ? 'light' : 'dark'} />
-      <Stack.Screen name="(auth)" />
-      <Stack.Screen name="(app)" />
-    </Stack>
+    <QueryClientProvider client={queryClient}>
+      <ThemeProvider>
+        <Stack screenOptions={{ headerShown: false }}>
+          <StatusBar style={colorScheme === 'dark' ? 'light' : 'dark'} />
+          <Stack.Screen name="(auth)" />
+          <Stack.Screen name="(app)" />
+        </Stack>
+      </ThemeProvider>
+    </QueryClientProvider>
   );
 }
