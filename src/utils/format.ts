@@ -37,7 +37,7 @@ export function formatRelativeDate(dateStr: string): string {
 
   if (diffDays === 0) return 'Hoje';
   if (diffDays === 1) return 'Ontem';
-  if (diffDays < 7) return `${diffDays} dias atras`;
+  if (diffDays < 7) return `${diffDays} dias atrás`;
   return formatDate(dateStr);
 }
 
