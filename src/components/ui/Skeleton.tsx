@@ -15,7 +15,7 @@ export function Skeleton({
   borderRadius = 8,
   style,
 }: SkeletonProps) {
-  const { colors, isDark } = useTheme();
+  const { colors } = useTheme();
   const opacity = useRef(new Animated.Value(0.3)).current;
 
   useEffect(() => {
@@ -35,16 +35,20 @@ export function Skeleton({
     );
     animation.start();
     return () => animation.stop();
-  }, [opacity]);
+    // opacity is a ref — stable reference, effect runs once on mount
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   return (
     <Animated.View
+      importantForAccessibility="no-hide-descendants"
+      accessibilityElementsHidden
       style={[
         {
-          width: width as any,
+          width,
           height,
           borderRadius,
-          backgroundColor: isDark ? '#21262D' : '#E1E4E8',
+          backgroundColor: colors.skeleton,
           opacity,
         },
         style,

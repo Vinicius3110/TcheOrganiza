@@ -15,6 +15,7 @@ interface ButtonProps {
   size?: 'sm' | 'md' | 'lg';
   loading?: boolean;
   disabled?: boolean;
+  accessibilityLabel?: string;
   style?: ViewStyle;
 }
 
@@ -25,6 +26,7 @@ export function Button({
   size = 'md',
   loading = false,
   disabled = false,
+  accessibilityLabel,
   style,
 }: ButtonProps) {
   const { colors } = useTheme();
@@ -43,17 +45,22 @@ export function Button({
     ghost: colors.primary,
   }[variant];
 
-  const height = { sm: 36, md: 48, lg: 56 }[size];
+  const height = { sm: 44, md: 48, lg: 56 }[size];
   const fontSize = { sm: 14, md: 16, lg: 18 }[size];
+
+  const isInteractive = !disabled && !loading;
 
   return (
     <TouchableOpacity
       onPress={onPress}
-      disabled={disabled || loading}
+      disabled={!isInteractive}
+      accessibilityRole="button"
+      accessibilityState={{ disabled: !isInteractive }}
+      accessibilityLabel={accessibilityLabel ?? title}
       style={[
         styles.base,
         {
-          backgroundColor: disabled ? colors.textTertiary : bgColor,
+          backgroundColor: disabled ? colors.disabledSurface : bgColor,
           height,
           borderRadius: 12,
           borderWidth: variant === 'secondary' ? 1 : 0,
@@ -81,6 +88,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 24,
   },
   text: {
-    fontFamily: 'Inter-SemiBold',
+    // Font rendered via system default until Inter is loaded by App entry point.
+    fontSize: 16,
   },
 });

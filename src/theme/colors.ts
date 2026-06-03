@@ -14,6 +14,8 @@ export const darkColors = {
   textTertiary: '#6E7681',
   border: '#30363D',
   divider: '#21262D',
+  disabledSurface: '#30363D33',
+  skeleton: '#21262D',
 } as const;
 
 export const lightColors = {
@@ -32,6 +34,12 @@ export const lightColors = {
   textTertiary: '#8B949E',
   border: '#D0D7DE',
   divider: '#EAECEF',
+  disabledSurface: '#D0D7DE66',
+  skeleton: '#E1E4E8',
 } as const;
 
 export type Colors = typeof darkColors;
+
+// Ensure lightColors has the same shape as Colors
+const _lightTypeCheck: Colors = lightColors;
+void _lightTypeCheck;
