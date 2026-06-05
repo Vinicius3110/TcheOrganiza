@@ -9,6 +9,7 @@ import { AccountCarousel } from '../../../src/components/features/AccountCarouse
 import { TransactionRow } from '../../../src/components/features/TransactionRow';
 import { Button } from '../../../src/components/ui/Button';
 import { Skeleton } from '../../../src/components/ui/Skeleton';
+import { SpendingChart } from '../../../src/components/features/SpendingChart';
 
 export default function DashboardScreen() {
   const { colors } = useTheme();
@@ -35,6 +36,10 @@ export default function DashboardScreen() {
 
       <Text style={[styles.sectionTitle, { color: colors.textPrimary }]}>Suas Contas</Text>
       <AccountCarousel accounts={accounts ?? []} isLoading={accountsLoading} />
+
+      {/* Spending Charts */}
+      <Text style={[styles.sectionTitle, { color: colors.textPrimary }]}>Análise de Gastos</Text>
+      <SpendingChart />
 
       <View style={styles.sectionHeader}>
         <Text style={[styles.sectionTitle, { color: colors.textPrimary, marginTop: 0 }]}>Transações Recentes</Text>
