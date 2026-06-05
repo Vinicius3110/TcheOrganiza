@@ -18,6 +18,20 @@ const KEYWORD_RULES: [string[], string][] = [
   [['corretora', 'acoes', 'fii', 'tesouro', 'investimento'], 'Investimentos'],
 ];
 
+/**
+ * Extract a clean pattern from a transaction description.
+ * Removes dates, amounts, and transaction IDs — keeps the merchant name part.
+ */
+function extractPattern(description: string): string {
+  return description
+    .replace(/\d{2}\/\d{2}\/\d{4}/g, '')
+    .replace(/\d{4}-\d{2}-\d{2}/g, '')
+    .replace(/R\$\s*[\d.,]+/gi, '')
+    .replace(/\b\d{6,}\b/g, '')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
 serve(async (_req: Request) => {
   try {
     const { data: transactions, error } = await supabase
@@ -61,13 +75,16 @@ serve(async (_req: Request) => {
 
       // Priority 2: CNPJ-based
       if (!matchedCategoryId && tx.merchant_cnpj) {
-        const { data: cnpjRule } = await supabase
+        const { data: cnpjRule, error: cnpjError } = await supabase
           .from('categorization_rules')
           .select('*')
           .eq('pattern', tx.merchant_cnpj)
           .eq('field', 'merchant_cnpj')
-          .single();
-        if (cnpjRule) matchedCategoryId = cnpjRule.category_id;
+          .maybeSingle();
+
+        if (!cnpjError && cnpjRule) {
+          matchedCategoryId = cnpjRule.category_id;
+        }
       }
 
       // Priority 3: Keyword fallback
@@ -95,8 +112,74 @@ serve(async (_req: Request) => {
       }
     }
 
+    // ==========================================
+    // LEARNING: detect user corrections and create/update rules
+    // ==========================================
+    let rulesCreated = 0;
+
+    const { data: correctedTxs, error: correctedError } = await supabase
+      .from('transactions')
+      .select('*')
+      .not('user_category_id', 'is', null)
+      .neq('user_category_id', 'category_id')
+      .limit(200);
+
+    if (!correctedError && correctedTxs) {
+      for (const tx of correctedTxs) {
+        const patternField: 'merchant_cnpj' | 'merchant_name' | 'description' =
+          tx.merchant_cnpj ? 'merchant_cnpj'
+          : tx.merchant_name ? 'merchant_name'
+          : 'description';
+
+        const patternValue =
+          patternField === 'merchant_cnpj' ? tx.merchant_cnpj!
+          : patternField === 'merchant_name' ? tx.merchant_name!
+          : extractPattern(tx.description);
+
+        if (!patternValue || patternValue.trim().length === 0) continue;
+
+        const { data: existingRule } = await supabase
+          .from('categorization_rules')
+          .select('*')
+          .eq('user_id', tx.user_id)
+          .eq('pattern', patternValue)
+          .eq('field', patternField)
+          .maybeSingle();
+
+        if (existingRule) {
+          const newConfidence = Math.min(
+            Number(existingRule.confidence) + 0.05,
+            1.0
+          );
+          await supabase
+            .from('categorization_rules')
+            .update({
+              confidence: newConfidence,
+              hit_count: existingRule.hit_count + 1,
+              category_id: tx.user_category_id,
+            })
+            .eq('id', existingRule.id);
+        } else {
+          await supabase.from('categorization_rules').insert({
+            user_id: tx.user_id,
+            pattern: patternValue,
+            field: patternField,
+            category_id: tx.user_category_id,
+            confidence: 0.8,
+            hit_count: 1,
+          });
+          rulesCreated++;
+        }
+
+        await supabase
+          .from('transactions')
+          .update({ category_id: tx.user_category_id, user_category_id: null })
+          .eq('id', tx.id);
+      }
+    }
+
     return new Response(
-      JSON.stringify({ success: true, categorized, total: transactions?.length ?? 0 }),
+      JSON.stringify({ success: true, categorized, rulesCreated, total: transactions?.length ?? 0 }),
       { headers: { 'Content-Type': 'application/json' } }
     );
   } catch (err: any) {
