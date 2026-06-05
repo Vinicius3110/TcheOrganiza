@@ -18,7 +18,14 @@ const KEYWORD_RULES: [string[], string][] = [
   [['corretora', 'acoes', 'fii', 'tesouro', 'investimento'], 'Investimentos'],
 ];
 
-serve(async (_req: Request) => {
+serve(async (req: Request) => {
+  if (req.method !== 'POST') {
+    return new Response(
+      JSON.stringify({ success: false, error: 'Method not allowed' }),
+      { status: 405, headers: { 'Content-Type': 'application/json' } }
+    );
+  }
+
   try {
     const { data: transactions, error } = await supabase
       .from('transactions')
