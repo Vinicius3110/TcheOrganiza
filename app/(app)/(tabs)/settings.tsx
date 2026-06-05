@@ -57,6 +57,10 @@ export default function SettingsScreen() {
           <Text style={[styles.rowLabel, { color: colors.textPrimary }]}>Exportar Extrato</Text>
           <Text style={[styles.rowArrow, { color: colors.textTertiary }]}>›</Text>
         </TouchableOpacity>
+        <TouchableOpacity style={styles.row} onPress={() => router.push('/budgets')}>
+          <Text style={[styles.rowLabel, { color: colors.textPrimary }]}>Orçamentos Mensais</Text>
+          <Text style={[styles.rowArrow, { color: colors.textTertiary }]}>›</Text>
+        </TouchableOpacity>
       </Card>
 
       <Button title="Sair da Conta" variant="danger" onPress={handleLogout} style={{ marginTop: 24 }} />
