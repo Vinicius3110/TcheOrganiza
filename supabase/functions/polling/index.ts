@@ -7,7 +7,15 @@ const PROXY_URL = Deno.env.get('PROXY_URL') || 'http://localhost:3001';
 
 const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
 
-serve(async (_req: Request) => {
+serve(async (req: Request) => {
+  // Only accept POST (triggered by cron) and GET (health check)
+  if (req.method !== 'POST' && req.method !== 'GET') {
+    return new Response(
+      JSON.stringify({ success: false, error: 'Method not allowed' }),
+      { status: 405, headers: { 'Content-Type': 'application/json' } }
+    );
+  }
+
   try {
     const { data: institutions, error } = await supabase
       .from('institutions')
