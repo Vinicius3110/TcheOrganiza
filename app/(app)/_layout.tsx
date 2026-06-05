@@ -24,6 +24,7 @@ export default function AppLayout() {
         <Stack.Screen name="connect-bank" options={{ animation: 'slide_from_bottom' }} />
         <Stack.Screen name="export" options={{ animation: 'slide_from_right' }} />
         <Stack.Screen name="profile" options={{ animation: 'slide_from_right' }} />
+        <Stack.Screen name="budgets" options={{ animation: 'slide_from_right', headerShown: true, title: 'Orçamentos' }} />
       </Stack>
     </LockScreen>
   );
