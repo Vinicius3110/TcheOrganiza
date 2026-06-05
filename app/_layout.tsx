@@ -12,6 +12,10 @@ import { QueryClientProvider } from '@tanstack/react-query';
 import { ThemeProvider } from '../src/theme/ThemeProvider';
 import { queryClient } from '../src/lib/query-client';
 import * as ScreenCapture from 'expo-screen-capture';
+import { initSentry } from '../src/services/sentry';
+
+// Initialize Sentry as early as possible — no-op if DSN not configured
+initSentry();
 
 export default function RootLayout() {
   const colorScheme = useColorScheme();
