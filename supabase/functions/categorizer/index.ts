@@ -1,10 +1,41 @@
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts';
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
+import { z } from 'https://deno.land/x/zod@v3.22.4/mod.ts';
 
-const SUPABASE_URL = Deno.env.get('SUPABASE_URL')!;
-const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
+const EnvSchema = z.object({
+  SUPABASE_URL: z.string().url(),
+  SUPABASE_SERVICE_ROLE_KEY: z.string().min(1),
+});
 
-const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
+const env = EnvSchema.parse({
+  SUPABASE_URL: Deno.env.get('SUPABASE_URL'),
+  SUPABASE_SERVICE_ROLE_KEY: Deno.env.get('SUPABASE_SERVICE_ROLE_KEY'),
+});
+
+const CategoryRowSchema = z.object({
+  id: z.string().uuid(),
+  name: z.string().min(1),
+});
+
+const TransactionRowSchema = z.object({
+  id: z.string().uuid(),
+  user_id: z.string().uuid(),
+  description: z.string(),
+  merchant_name: z.string().nullable(),
+  merchant_cnpj: z.string().nullable(),
+  category_id: z.string().uuid().nullable(),
+  user_category_id: z.string().uuid().nullable(),
+});
+
+const CategorizationRuleRowSchema = z.object({
+  user_id: z.string().uuid(),
+  pattern: z.string(),
+  field: z.enum(['description', 'merchant_name', 'merchant_cnpj']),
+  category_id: z.string().uuid(),
+  confidence: z.number(),
+});
+
+const supabase = createClient(env.SUPABASE_URL, env.SUPABASE_SERVICE_ROLE_KEY);
 
 const KEYWORD_RULES: [string[], string][] = [
   [['uber', '99', 'cabify'], 'Transporte'],
@@ -41,45 +72,49 @@ serve(async (req: Request) => {
 
     if (!categories) throw new Error('No categories found');
 
-    const categoryMap = new Map(categories.map((c: any) => [c.name, c.id]));
+    const validCategories = z.array(CategoryRowSchema).parse(categories);
+    const categoryMap = new Map(validCategories.map((c) => [c.name, c.id]));
     let categorized = 0;
 
     for (const tx of transactions ?? []) {
+      const validTx = TransactionRowSchema.parse(tx);
+
       const { data: rules } = await supabase
         .from('categorization_rules')
         .select('*')
-        .eq('user_id', tx.user_id)
+        .eq('user_id', validTx.user_id)
         .order('confidence', { ascending: false });
 
       let matchedCategoryId: string | null = null;
 
-      // Priority 1: Learned rules
       for (const rule of rules ?? []) {
+        const validRule = CategorizationRuleRowSchema.parse(rule);
         const fieldValue = String(
-          rule.field === 'merchant_name' ? (tx.merchant_name ?? '')
-          : rule.field === 'merchant_cnpj' ? (tx.merchant_cnpj ?? '')
-          : tx.description
+          validRule.field === 'merchant_name' ? (validTx.merchant_name ?? '')
+          : validRule.field === 'merchant_cnpj' ? (validTx.merchant_cnpj ?? '')
+          : validTx.description
         ).toLowerCase();
-        if (fieldValue.includes(rule.pattern.toLowerCase())) {
-          matchedCategoryId = rule.category_id;
+        if (fieldValue.includes(validRule.pattern.toLowerCase())) {
+          matchedCategoryId = validRule.category_id;
           break;
         }
       }
 
-      // Priority 2: CNPJ-based
-      if (!matchedCategoryId && tx.merchant_cnpj) {
-        const { data: cnpjRule } = await supabase
+      if (!matchedCategoryId && validTx.merchant_cnpj) {
+        const { data: cnpjRule, error: cnpjError } = await supabase
           .from('categorization_rules')
           .select('*')
-          .eq('pattern', tx.merchant_cnpj)
+          .eq('pattern', validTx.merchant_cnpj)
           .eq('field', 'merchant_cnpj')
-          .single();
-        if (cnpjRule) matchedCategoryId = cnpjRule.category_id;
+          .maybeSingle();
+
+        if (!cnpjError && cnpjRule) {
+          matchedCategoryId = cnpjRule.category_id;
+        }
       }
 
-      // Priority 3: Keyword fallback
       if (!matchedCategoryId) {
-        const desc = (tx.description + ' ' + (tx.merchant_name ?? '')).toLowerCase();
+        const desc = (validTx.description + ' ' + (validTx.merchant_name ?? '')).toLowerCase();
         for (const [keywords, categoryName] of KEYWORD_RULES) {
           if (keywords.some((kw) => desc.includes(kw))) {
             matchedCategoryId = categoryMap.get(categoryName) ?? null;
@@ -88,7 +123,6 @@ serve(async (req: Request) => {
         }
       }
 
-      // Priority 4: Fallback to Outros
       if (!matchedCategoryId) {
         matchedCategoryId = categoryMap.get('Outros') ?? null;
       }
@@ -97,7 +131,7 @@ serve(async (req: Request) => {
         await supabase
           .from('transactions')
           .update({ category_id: matchedCategoryId, status: 'categorized' })
-          .eq('id', tx.id);
+          .eq('id', validTx.id);
         categorized++;
       }
     }
