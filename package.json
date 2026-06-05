@@ -23,6 +23,8 @@
     "react-native-reanimated": "^4.3.1",
     "react-native-safe-area-context": "~5.7.0",
     "react-native-screens": "^4.25.2",
+    "react-native-svg": "^15.15.5",
+    "victory-native": "^41.25.0",
     "zod": "^4.4.3",
     "zustand": "^5.0.14"
   },
