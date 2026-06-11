@@ -1,0 +1,37 @@
+{
+  "expo": {
+    "name": "TcheOrganiza",
+    "slug": "tche-organiza",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "userInterfaceStyle": "automatic",
+    "scheme": "tcheorganiza",
+    "splash": {
+      "backgroundColor": "#0D1117",
+      "resizeMode": "contain"
+    },
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.tcheorganiza.app",
+      "infoPlist": {
+        "NSFaceIDUsageDescription": "Use Face ID para acessar o TcheOrganiza de forma segura."
+      }
+    },
+    "android": {
+      "adaptiveIcon": {
+        "backgroundColor": "#0D1117"
+      },
+      "package": "com.tcheorganiza.app",
+      "permissions": ["USE_BIOMETRIC", "USE_FINGERPRINT"]
+    },
+    "plugins": [
+      "expo-router",
+      "expo-local-authentication",
+      "expo-secure-store"
+    ],
+    "experiments": {
+      "typedRoutes": true
+    }
+  }
+}
