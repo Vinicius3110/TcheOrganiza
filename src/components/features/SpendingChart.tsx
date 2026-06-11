@@ -1,6 +1,6 @@
 import React, { useMemo } from 'react';
 import { View, Text, StyleSheet, Dimensions } from 'react-native';
-import { VictoryPie, VictoryBar, VictoryChart, VictoryAxis } from 'victory-native';
+import Svg, { Path, Rect, Line as SvgLine, Text as SvgText, G } from 'react-native-svg';
 import { useTheme } from '../../theme/ThemeProvider';
 import { useTransactions } from '../../hooks/useTransactions';
 import { useCategories } from '../../hooks/useCategories';
@@ -10,6 +10,21 @@ import { Skeleton } from '../ui/Skeleton';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 const CHART_SIZE = SCREEN_WIDTH - 96;
+const PIE_RADIUS = 80;
+const BAR_CHART_H = 180;
+
+/** Compute SVG arc path for a pie slice */
+function pieSlicePath(
+  cx: number, cy: number, r: number,
+  startAngle: number, endAngle: number,
+): string {
+  const x1 = cx + r * Math.cos(startAngle);
+  const y1 = cy + r * Math.sin(startAngle);
+  const x2 = cx + r * Math.cos(endAngle);
+  const y2 = cy + r * Math.sin(endAngle);
+  const large = endAngle - startAngle > Math.PI ? 1 : 0;
+  return `M ${cx} ${cy} L ${x1} ${y1} A ${r} ${r} 0 ${large} 1 ${x2} ${y2} Z`;
+}
 
 export function SpendingChart() {
   const { colors } = useTheme();
@@ -57,6 +72,23 @@ export function SpendingChart() {
     [pieData],
   );
 
+  const pieSlices = useMemo(() => {
+    let angle = -Math.PI / 2;
+    return pieData.map((slice) => {
+      const pct = slice.y / totalSpent;
+      const startAngle = angle;
+      const endAngle = angle + pct * Math.PI * 2;
+      angle = endAngle;
+      return { ...slice, startAngle, endAngle };
+    });
+  }, [pieData, totalSpent]);
+
+  const barMax = useMemo(
+    () => Math.max(...barData.map((d) => d.y), 1),
+    [barData],
+  );
+  const barW = Math.max((CHART_SIZE - 40) / barData.length - 8, 4);
+
   if (txsLoading || catsLoading) {
     return (
       <Card style={styles.card}>
@@ -79,21 +111,26 @@ export function SpendingChart() {
 
   return (
     <View style={styles.container}>
+      {/* Pie Chart */}
       <Card style={styles.card}>
         <Text style={[styles.title, { color: colors.textPrimary }]}>Gastos por Categoria</Text>
         <Text style={[styles.subtitle, { color: colors.textSecondary }]}>
           Total: {formatCurrency(-totalSpent)}
         </Text>
-        <VictoryPie
-          data={pieData}
-          width={CHART_SIZE}
-          height={200}
-          innerRadius={55}
-          padAngle={2}
-          colorScale={pieData.map((d) => d.color)}
-          labels={() => null}
-          style={{ data: { fillOpacity: 0.9 } }}
-        />
+        <View style={styles.chartWrap}>
+          <Svg width={CHART_SIZE} height={200} viewBox={`0 0 ${PIE_RADIUS * 2} ${PIE_RADIUS * 2}`}>
+            <G x={PIE_RADIUS} y={PIE_RADIUS}>
+              {pieSlices.map((slice) => (
+                <Path
+                  key={slice.x}
+                  d={pieSlicePath(0, 0, PIE_RADIUS - 2, slice.startAngle, slice.endAngle)}
+                  fill={slice.color}
+                  opacity={0.9}
+                />
+              ))}
+            </G>
+          </Svg>
+        </View>
         <View style={styles.legend}>
           {pieData.map((item) => (
             <View key={item.x} style={styles.legendItem}>
@@ -109,33 +146,35 @@ export function SpendingChart() {
         </View>
       </Card>
 
+      {/* Bar Chart */}
       <Card style={styles.card}>
         <Text style={[styles.title, { color: colors.textPrimary }]}>Últimos 7 Dias</Text>
-        <VictoryChart
-          width={CHART_SIZE}
-          height={200}
-          domainPadding={20}
-        >
-          <VictoryAxis
-            style={{
-              axis: { stroke: colors.border },
-              tickLabels: { fill: colors.textTertiary, fontSize: 10 },
-            }}
-          />
-          <VictoryAxis
-            dependentAxis
-            style={{
-              axis: { stroke: 'transparent' },
-              tickLabels: { fill: colors.textTertiary, fontSize: 10 },
-            }}
-            tickFormat={(t: number) => (t >= 1000 ? `${(t / 1000).toFixed(0)}k` : String(t))}
-          />
-          <VictoryBar
-            data={barData}
-            style={{ data: { fill: colors.primary, width: 20 } }}
-            cornerRadius={4}
-          />
-        </VictoryChart>
+        <Svg width={CHART_SIZE} height={BAR_CHART_H} viewBox={`0 0 ${CHART_SIZE} ${BAR_CHART_H}`}>
+          {[0, 0.25, 0.5, 0.75, 1].map((pct) => {
+            const y = 20 + (BAR_CHART_H - 60) * (1 - pct);
+            return (
+              <G key={`grid-${pct}`}>
+                <SvgLine x1={30} y1={y} x2={CHART_SIZE - 8} y2={y} stroke={colors.divider} strokeWidth={0.5} />
+                <SvgText x={26} y={y + 4} fill={colors.textTertiary} fontSize={9} textAnchor="end">
+                  {barMax * pct >= 1000 ? `${((barMax * pct) / 1000).toFixed(0)}k` : String(Math.round(barMax * pct))}
+                </SvgText>
+              </G>
+            );
+          })}
+          {barData.map((d, i) => {
+            const barH = barMax > 0 ? ((d.y / barMax) * (BAR_CHART_H - 60)) : 0;
+            const x = 36 + i * (barW + 8);
+            const y = BAR_CHART_H - 24 - barH;
+            return (
+              <G key={d.x}>
+                <Rect x={x} y={y} width={barW} height={barH} rx={4} ry={4} fill={colors.primary} />
+                <SvgText x={x + barW / 2} y={BAR_CHART_H - 6} fill={colors.textTertiary} fontSize={8} textAnchor="middle">
+                  {d.x}
+                </SvgText>
+              </G>
+            );
+          })}
+        </Svg>
       </Card>
     </View>
   );
@@ -144,6 +183,7 @@ export function SpendingChart() {
 const styles = StyleSheet.create({
   container: { gap: 12 },
   card: { gap: 4 },
+  chartWrap: { alignItems: 'center', marginTop: 8 },
   title: { fontSize: 16, fontFamily: 'Inter-SemiBold' },
   subtitle: { fontSize: 13, fontFamily: 'Inter-Regular' },
   empty: { fontSize: 14, fontFamily: 'Inter-Regular', textAlign: 'center', paddingVertical: 24 },
