@@ -1,14 +1,47 @@
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts';
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
+import { z } from 'https://deno.land/x/zod@v3.22.4/mod.ts';
 
-const SUPABASE_URL = Deno.env.get('SUPABASE_URL')!;
-const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
-const PROXY_URL = Deno.env.get('PROXY_URL') || 'http://localhost:3001';
+const EnvSchema = z.object({
+  SUPABASE_URL: z.string().url(),
+  SUPABASE_SERVICE_ROLE_KEY: z.string().min(1),
+  PROXY_URL: z.string().url().default('http://localhost:3001'),
+});
 
-const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
+const env = EnvSchema.parse({
+  SUPABASE_URL: Deno.env.get('SUPABASE_URL'),
+  SUPABASE_SERVICE_ROLE_KEY: Deno.env.get('SUPABASE_SERVICE_ROLE_KEY'),
+  PROXY_URL: Deno.env.get('PROXY_URL') || 'http://localhost:3001',
+});
+
+const ProxyAccountSchema = z.object({
+  externalId: z.string(),
+  name: z.string(),
+  type: z.enum(['corrente', 'poupanca', 'investimento']),
+  currency: z.string(),
+  balance: z.number(),
+});
+
+const ProxyTransactionSchema = z.object({
+  externalId: z.string(),
+  amount: z.number(),
+  description: z.string(),
+  merchantName: z.string().optional(),
+  merchantCnpj: z.string().optional(),
+  date: z.string(),
+  type: z.enum(['DEBIT', 'CREDIT', 'PIX', 'TED', 'BOLETO']),
+  status: z.enum(['pending', 'posted']),
+  metadata: z.record(z.unknown()).default({}),
+});
+
+const ProxyResponseSchema = z.object({
+  accounts: z.array(ProxyAccountSchema),
+  transactions: z.array(ProxyTransactionSchema),
+});
+
+const supabase = createClient(env.SUPABASE_URL, env.SUPABASE_SERVICE_ROLE_KEY);
 
 serve(async (req: Request) => {
-  // Only accept POST (triggered by cron) and GET (health check)
   if (req.method !== 'POST' && req.method !== 'GET') {
     return new Response(
       JSON.stringify({ success: false, error: 'Method not allowed' }),
@@ -30,7 +63,7 @@ serve(async (req: Request) => {
 
     for (const inst of institutions ?? []) {
       try {
-        const proxyRes = await fetch(`${PROXY_URL}/api/fetch`, {
+        const proxyRes = await fetch(`${env.PROXY_URL}/api/fetch`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
@@ -45,7 +78,8 @@ serve(async (req: Request) => {
           continue;
         }
 
-        const { accounts, transactions } = await proxyRes.json();
+        const rawJson = await proxyRes.json();
+        const { accounts, transactions } = ProxyResponseSchema.parse(rawJson);
 
         for (const acc of accounts) {
           await supabase.from('accounts').upsert(
